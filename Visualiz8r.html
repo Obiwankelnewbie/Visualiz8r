@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SWARM OMNIVORE</title>
+
+<!-- html2canvas pour les screenshots -->
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+<style>
+  :root {
+    --bg:         #0d1420;
+    --bg-deep:    #070b14;
+    --panel:      #151d2e;
+    --panel-hi:   #1a243a;
+    --panel-edit: #11192a;
+    --border:     #223150;
+    --border-soft:#1a2640;
+    --text:       #e8eef8;
+    --text-dim:   #94a3be;
+    --text-faint: #5a6a88;
+    --cyan:       #5de6f0;
+    --cyan-hot:   #00e5ff;
+    --red:        #ff5b74;
+    --green:      #4ade80;
+    --amber:      #fbbf24;
+    --yellow:     #ffd84d;
+    --yellow-hi:  #fff08a;
+    --separator:  #2a3a5c;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(1200px 600px at 15% -5%, rgba(0,229,255,0.05), transparent 60%),
+      radial-gradient(900px 500px at 85% 105%, rgba(93,230,240,0.03), transparent 60%);
+  }
+
+  .app { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100vh; }
+
+  /* TOPBAR */
+  .topbar {
+    height: 58px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 20px;
+    background: linear-gradient(180deg, #0a1120 0%, #080d18 100%);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.4);
+  }
+
+  .title {
+    font-size: 14px; font-weight: 700; letter-spacing: 3px; color: var(--text);
+    display: flex; align-items: center; gap: 11px; user-select: none;
+  }
+  .title::before {
+    content: ""; width: 9px; height: 9px; border-radius: 50%;
+    background: var(--cyan-hot);
+    box-shadow: 0 0 14px var(--cyan-hot), 0 0 4px var(--cyan-hot);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .title span { color: var(--cyan); font-weight: 500; letter-spacing: 2.5px; }
+  @keyframes pulse { 0%,100%{opacity:1; transform:scale(1)} 50%{opacity:.5; transform:scale(.85)} }
+
+  .status {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border: 1px solid var(--border); border-radius: 7px;
+    background: var(--panel);
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase;
+    color: var(--text-dim); transition: all .25s cubic-bezier(.4,0,.2,1);
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-faint); transition: all .25s; }
+  .status.ready { color: var(--green); border-color: rgba(74,222,128,0.3); }
+  .status.ready .status-dot { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status.compiling { color: var(--amber); border-color: rgba(251,191,36,0.3); }
+  .status.compiling .status-dot { background: var(--amber); animation: pulse 1s infinite; }
+  .status.idle { color: var(--text-dim); }
+
+  .spacer { flex: 1; }
+
+  .btn {
+    appearance: none;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.4px;
+    cursor: pointer;
+    transition: all .15s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+  }
+  .btn:hover { background: var(--panel-hi); border-color: rgba(93,230,240,0.4); color: var(--cyan); }
+  .btn:active { transform: translateY(1px); }
+  .btn svg { width: 14px; height: 14px; }
+
+  .btn-postit {
+    background: linear-gradient(180deg, var(--yellow-hi) 0%, var(--yellow) 100%);
+    color: #2a2105;
+    border: 1px solid rgba(120,85,0,0.4);
+    font-weight: 700;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 2px 0 rgba(0,0,0,0.2);
+    letter-spacing: 1px;
+  }
+  .btn-postit:hover {
+    background: linear-gradient(180deg, #fff5b0 0%, #ffe070 100%);
+    color: #2a2105;
+    transform: translateY(-1px);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 4px 10px rgba(0,0,0,0.25);
+  }
+
+  .btn-primary {
+    background: linear-gradient(180deg, #00e5ff 0%, #00b8cf 100%);
+    color: #001820;
+    border-color: rgba(0,229,255,0.6);
+    font-weight: 700;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.3) inset, 0 0 20px -4px rgba(0,229,255,0.4);
+    letter-spacing: 1px;
+  }
+  .btn-primary:hover {
+    background: linear-gradient(180deg, #3befff 0%, #00d4ee 100%);
+    color: #001820;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.4) inset, 0 0 28px -2px rgba(0,229,255,0.6);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--text-dim);
+    border-color: var(--border-soft);
+  }
+  .btn-ghost:hover {
+    color: var(--red);
+    border-color: rgba(255,91,116,0.4);
+    background: rgba(255,91,116,0.05);
+  }
+
+  .brand-links {
+    display: inline-flex; gap: 4px; padding: 3px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 9px; height: 34px;
+  }
+  .brand-link {
+    text-decoration: none; padding: 0 14px; border-radius: 6px;
+    color: var(--text-dim); font-size: 12px; font-weight: 500; letter-spacing: 0.4px;
+    transition: all .15s; display: inline-flex; align-items: center; gap: 7px; height: 100%;
+  }
+  .brand-link:hover { color: var(--cyan); background: var(--panel-hi); }
+  .brand-link svg { width: 13px; height: 13px; opacity: 0.75; transition: opacity .15s; }
+  .brand-link:hover svg { opacity: 1; }
+
+  /* VIEWPORT SWITCHER */
+  .vp-group {
+    display: inline-flex;
+    align-items: center;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+    height: 34px;
+  }
+  .vp-btn {
+    appearance: none;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    width: 34px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 5px;
+    transition: all .15s;
+  }
+  .vp-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .vp-btn.active {
+    color: var(--cyan-hot);
+    background: rgba(0,229,255,0.1);
+    box-shadow: inset 0 0 0 1px rgba(0,229,255,0.25);
+  }
+  .vp-btn svg { width: 14px; height: 14px; stroke-width: 2; }
+
+  /* MAIN */
+  .main {
+    flex: 1; min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr 2px 1fr;
+  }
+
+  .separator {
+    background: linear-gradient(180deg,
+      transparent 0%,
+      var(--separator) 15%, var(--separator) 85%,
+      transparent 100%);
+    position: relative;
+  }
+  .separator::before {
+    content: ""; position: absolute;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 2px; height: 40px; background: var(--cyan);
+    opacity: 0.3; border-radius: 2px;
+    box-shadow: 0 0 12px var(--cyan);
+  }
+
+  .pane { display: flex; flex-direction: column; min-height: 0; }
+  .pane.editor-pane { background: var(--panel-edit); }
+  .pane.preview-pane { background: #fff; }
+
+  .pane-header {
+    height: 38px; flex-shrink: 0;
+    display: flex; align-items: center;
+    padding: 0 18px;
+    background: var(--bg-deep);
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 10.5px; letter-spacing: 2.5px; text-transform: uppercase;
+    color: var(--text-faint);
+  }
+  .pane-header .tag {
+    color: var(--text-dim);
+    display: inline-flex; align-items: center; gap: 8px;
+    font-weight: 500;
+  }
+  .pane-header .tag::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--cyan); box-shadow: 0 0 6px var(--cyan);
+  }
+  .pane-header .meta {
+    margin-left: auto;
+    color: var(--text-faint);
+    font-size: 10px; letter-spacing: 1px;
+  }
+
+  .editor-body { flex: 1; min-height: 0; position: relative; display: flex; }
+  .editor {
+    flex: 1; width: 100%;
+    background: transparent; color: var(--text);
+    border: none; outline: none; resize: none;
+    padding: 24px 26px;
+    font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    font-size: 13.5px; line-height: 1.7;
+    tab-size: 2; caret-color: var(--cyan-hot);
+    white-space: pre; overflow: auto;
+  }
+  .editor::selection { background: rgba(0,229,255,0.25); }
+  .editor::placeholder { color: var(--text-faint); opacity: 1; }
+
+  .preview-body {
+    flex: 1; min-height: 0;
+    position: relative; background: #fff; overflow: hidden;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    transition: background .3s ease;
+  }
+  .preview-body.framed {
+    background:
+      linear-gradient(var(--bg-deep), var(--bg-deep)),
+      radial-gradient(ellipse at center, rgba(0,229,255,0.04), transparent 70%);
+    padding: 24px;
+  }
+  .iframe-wrapper {
+    width: 100%;
+    height: 100%;
+    transition: max-width .4s cubic-bezier(.65,0,.35,1), box-shadow .3s, border-radius .3s;
+    background: #fff;
+    max-width: 100%;
+  }
+  .iframe-wrapper.tablet {
+    max-width: 820px;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px var(--border),
+      0 30px 60px -20px rgba(0,0,0,0.5),
+      0 0 60px -20px rgba(0,229,255,0.15);
+  }
+  .iframe-wrapper.mobile {
+    max-width: 390px;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px var(--border),
+      0 30px 60px -20px rgba(0,0,0,0.5),
+      0 0 60px -20px rgba(0,229,255,0.15);
+  }
+  .preview-iframe {
+    width: 100%; height: 100%;
+    border: none; display: block; background: #fff;
+  }
+
+  .postit-layer {
+    position: absolute; inset: 0;
+    pointer-events: none; z-index: 100;
+  }
+
+  /* POST-IT */
+  .postit {
+    position: absolute; pointer-events: all;
+    width: 180px; min-height: 180px;
+    padding: 20px 18px 24px 18px;
+    background: linear-gradient(180deg, var(--yellow-hi) 0%, var(--yellow) 100%);
+    color: #2a2105;
+    font-family: 'Caveat', 'Marker Felt', 'Comic Sans MS', cursive;
+    font-size: 20px; line-height: 1.25;
+    box-shadow:
+      0 1px 1px rgba(0,0,0,0.12),
+      0 4px 10px -1px rgba(0,0,0,0.3),
+      0 18px 26px -12px rgba(0,0,0,0.35);
+    transform: rotate(var(--rot, -2deg));
+    animation: postitFloat 4s ease-in-out infinite;
+    border-radius: 2px;
+    clip-path: polygon(0 0, 100% 0, 100% 88%, 88% 100%, 0 100%);
+  }
+  .postit::after {
+    content: ""; position: absolute; bottom: 0; right: 0;
+    width: 28px; height: 28px;
+    background: linear-gradient(135deg, rgba(0,0,0,0.14), rgba(0,0,0,0));
+    clip-path: polygon(100% 0, 0 100%, 100% 100%);
+    pointer-events: none;
+  }
+  .postit.dragging {
+    animation: none !important;
+    transform: rotate(var(--rot, -2deg)) scale(1.06);
+    box-shadow: 0 10px 30px -2px rgba(0,0,0,0.4), 0 30px 60px -10px rgba(0,0,0,0.5);
+    z-index: 200; cursor: grabbing;
+  }
+  .postit textarea {
+    width: 100%; min-height: 130px;
+    background: transparent; border: none; outline: none; resize: none;
+    font: inherit; color: inherit; padding: 0; margin-top: 4px;
+  }
+  .postit textarea::placeholder { color: rgba(42,33,5,0.4); }
+  .postit .drag-handle {
+    position: absolute; top: 0; left: 0; right: 26px; height: 26px;
+    cursor: grab; background: transparent;
+  }
+  .postit.dragging .drag-handle { cursor: grabbing; }
+  .postit .postit-close {
+    position: absolute; top: 6px; right: 8px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,0,0,0.08); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: #2a2105;
+    opacity: 0; transition: opacity .2s, background .15s;
+    font-weight: 700; line-height: 1;
+    font-family: 'Inter', sans-serif;
+    z-index: 2;
+  }
+  .postit:hover .postit-close { opacity: 1; }
+  .postit-close:hover { background: rgba(0,0,0,0.2); }
+  @keyframes postitFloat {
+    0%,100% { transform: rotate(var(--rot, -2deg)) translateY(0); }
+    50%     { transform: rotate(calc(var(--rot, -2deg) + 0.6deg)) translateY(-3px); }
+  }
+
+  /* TOAST */
+  .toast-layer {
+    position: fixed; top: 74px; right: 20px; z-index: 10000;
+    display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  }
+  .toast {
+    padding: 10px 14px;
+    background: rgba(13,20,32,0.98);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--cyan-hot);
+    color: var(--text);
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 11.5px; border-radius: 6px;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    animation: toastIn .3s cubic-bezier(.34,1.56,.64,1);
+    pointer-events: all; max-width: 320px;
+  }
+  .toast.success { border-left-color: var(--green); }
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px);} to { opacity: 1; transform: translateX(0);} }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; border: 2px solid var(--bg-deep); }
+  ::-webkit-scrollbar-thumb:hover { background: #2d4066; }
+
+  @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600&display=swap');
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="topbar">
+    <div class="title">SWARM <span>OMNIVORE</span></div>
+
+    <div id="status" class="status idle">
+      <span class="status-dot"></span>
+      <span id="status-text">PRÊT</span>
+    </div>
+
+    <div class="spacer"></div>
+
+    <button id="btn-postit" class="btn btn-postit" title="Ajouter un post-it">📌 POST-IT</button>
+
+    <!-- Viewport switcher -->
+    <div class="vp-group" role="tablist" aria-label="Viewport">
+      <button class="vp-btn" data-vp="mobile" title="Mobile · 390px" aria-label="Mobile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="7" y="3" width="10" height="18" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>
+        </svg>
+      </button>
+      <button class="vp-btn" data-vp="tablet" title="Tablet · 820px" aria-label="Tablet">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="3" width="16" height="18" rx="2"/><line x1="10.5" y1="18" x2="13.5" y2="18"/>
+        </svg>
+      </button>
+      <button class="vp-btn active" data-vp="desktop" title="Desktop" aria-label="Desktop">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="20" height="13" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Download buttons -->
+    <button id="btn-download" class="btn" title="Télécharger le HTML rendu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      HTML
+    </button>
+
+    <button id="btn-screenshot" class="btn" title="Capturer le rendu en PNG">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+      </svg>
+      PNG
+    </button>
+
+    <button id="btn-run" class="btn btn-primary" title="Compiler (Ctrl+Enter)">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      RUN
+    </button>
+
+    <button id="btn-clear" class="btn btn-ghost" title="Vider l'éditeur">EFFACER</button>
+
+    <div class="brand-links">
+      <a class="brand-link" href="https://core-ia.fr" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <line x1="3" y1="9" x2="21" y2="9"/>
+          <line x1="9" y1="21" x2="9" y2="9"/>
+        </svg>
+        Média
+      </a>
+      <a class="brand-link" href="https://core-ia.fr" target="_blank" rel="noopener noreferrer">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        Forum
+      </a>
+    </div>
+  </div>
+
+  <div class="main">
+
+    <div class="pane editor-pane">
+      <div class="pane-header">
+        <div class="tag">SOURCE</div>
+        <div class="meta"><span id="char-count">0 chars</span></div>
+      </div>
+      <div class="editor-body">
+        <textarea id="editor" class="editor"
+          spellcheck="false"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          wrap="off"
+          placeholder="COLLE TON CODE HTML/TAILWIND ICI !"></textarea>
+      </div>
+    </div>
+
+    <div class="separator"></div>
+
+    <div class="pane preview-pane">
+      <div class="pane-header" style="background: #f6f7fb; color: #5a6a88; border-bottom: 1px solid #e2e7f0;">
+        <div class="tag" style="color:#475569">RENDU</div>
+        <div class="meta" style="color:#94a3be"><span id="render-time">—</span></div>
+      </div>
+      <div class="preview-body" id="preview-body">
+        <div class="iframe-wrapper" id="iframe-wrapper">
+          <iframe id="preview" class="preview-iframe"
+            sandbox="allow-scripts allow-popups allow-forms allow-modals"
+            title="Preview"></iframe>
+        </div>
+        <div class="postit-layer" id="postit-layer"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-layer" id="toast-layer"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var editor       = document.getElementById('editor');
+  var previewFrame = document.getElementById('preview');
+  var postitLayer  = document.getElementById('postit-layer');
+  var statusEl     = document.getElementById('status');
+  var statusText   = document.getElementById('status-text');
+  var charCount    = document.getElementById('char-count');
+  var renderTime   = document.getElementById('render-time');
+  var btnRun       = document.getElementById('btn-run');
+  var btnClear     = document.getElementById('btn-clear');
+  var btnPostit    = document.getElementById('btn-postit');
+  var toastLayer   = document.getElementById('toast-layer');
+
+  var debounceTimer = null;
+  var audioCtx = null;
+
+  function setStatus(kind, text) {
+    statusEl.className = 'status ' + kind;
+    statusText.textContent = text;
+  }
+  function updateChars() { charCount.textContent = editor.value.length + ' chars'; }
+
+  function toast(msg, kind) {
+    var el = document.createElement('div');
+    el.className = 'toast ' + (kind || '');
+    el.textContent = msg;
+    toastLayer.appendChild(el);
+    setTimeout(function(){
+      el.style.transition = 'opacity .3s, transform .3s';
+      el.style.opacity = '0';
+      el.style.transform = 'translateX(20px)';
+      setTimeout(function(){ el.remove(); }, 300);
+    }, 2400);
+  }
+
+  function extractBody(html) {
+    var bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    if (bodyMatch) {
+      var styles = '';
+      var headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+      if (headMatch) {
+        var re = /<style[^>]*>[\s\S]*?<\/style>/gi, m;
+        while ((m = re.exec(headMatch[1])) !== null) styles += m[0] + '\n';
+      }
+      return styles + bodyMatch[1];
+    }
+    if (/<!DOCTYPE/i.test(html) || /<html/i.test(html)) {
+      return html
+        .replace(/<!DOCTYPE[^>]*>/i, '')
+        .replace(/<\/?html[^>]*>/gi, '')
+        .replace(/<head[\s\S]*?<\/head>/gi, '')
+        .replace(/<\/?body[^>]*>/gi, '');
+    }
+    return html;
+  }
+
+  function buildSrcdoc(userHTML) {
+    var body = extractBody(userHTML);
+    var head = '<!DOCTYPE html><html lang="fr"><head>' +
+      '<meta charset="UTF-8">' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<meta name="referrer" content="no-referrer">' +
+      '<script src="https://cdn.tailwindcss.com"></scr' + 'ipt>' +
+      '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap">' +
+      '<style>' +
+      'html,body{margin:0;padding:0;}' +
+      'body{font-family:"Inter",system-ui,-apple-system,sans-serif;background:#fff;color:#0f172a;min-height:100vh;}' +
+      'img{max-width:100%;height:auto;}' +
+      '</style>' +
+      '</head><body>';
+
+    var foot = '<script src="https://unpkg.com/lucide@0.441.0/dist/umd/lucide.min.js"></scr' + 'ipt>' +
+      '<script>try{' +
+      'if(window.lucide&&window.lucide.createIcons)window.lucide.createIcons();' +
+      'document.querySelectorAll("img").forEach(function(img){if(!img.hasAttribute("referrerpolicy"))img.setAttribute("referrerpolicy","no-referrer");});' +
+      '}catch(e){}</scr' + 'ipt>' +
+      '</body></html>';
+
+    return head + body + foot;
+  }
+
+  function buildEmptyDoc() {
+    return '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' +
+      'html,body{margin:0;padding:0;height:100%;}' +
+      'body{display:flex;align-items:center;justify-content:center;background:#fff;color:#94a3be;font-family:system-ui,sans-serif;font-size:13px;letter-spacing:1px;flex-direction:column;gap:14px}' +
+      '.pulse{width:10px;height:10px;background:#00e5ff;border-radius:50%;box-shadow:0 0 14px #00e5ff;animation:p 2s infinite}' +
+      '@keyframes p{0%,100%{opacity:1}50%{opacity:.3}}' +
+      '</style></head><body>' +
+      '<div class="pulse"></div><div>En attente de code…</div>' +
+      '</body></html>';
+  }
+
+  function compileAndRun() {
+    var code = editor.value;
+
+    if (!code.trim()) {
+      previewFrame.srcdoc = buildEmptyDoc();
+      setStatus('idle', 'PRÊT');
+      renderTime.textContent = '—';
+      return;
+    }
+
+    setStatus('compiling', 'COMPILATION');
+    var t0 = performance.now();
+
+    try {
+      previewFrame.srcdoc = buildSrcdoc(code);
+      setTimeout(function(){
+        setStatus('ready', 'RENDU ACTIF');
+      }, 100);
+      renderTime.textContent = Math.round(performance.now() - t0) + ' ms';
+    } catch (e) {
+      toast('Erreur : ' + e.message);
+      setStatus('idle', 'PRÊT');
+    }
+  }
+
+  function scheduleRun() {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(compileAndRun, 300);
+  }
+
+  editor.addEventListener('input', function(){ updateChars(); scheduleRun(); });
+  editor.addEventListener('keydown', function(e){
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      var s = editor.selectionStart, t = editor.selectionEnd;
+      editor.value = editor.value.substring(0, s) + '  ' + editor.value.substring(t);
+      editor.selectionStart = editor.selectionEnd = s + 2;
+      updateChars(); scheduleRun();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      compileAndRun();
+    }
+  });
+
+  btnRun.addEventListener('click', compileAndRun);
+  btnClear.addEventListener('click', function(){
+    editor.value = '';
+    updateChars();
+    compileAndRun();
+    editor.focus();
+    toast('Éditeur vidé', 'success');
+  });
+
+  /* POST-IT */
+  function scrishSound() {
+    try {
+      if (!audioCtx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        audioCtx = new AC();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      var dur = 0.16;
+      var len = Math.floor(audioCtx.sampleRate * dur);
+      var buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+      var ch = buf.getChannelData(0);
+      for (var i = 0; i < len; i++) {
+        var t = i / len;
+        var env = Math.pow(1 - t, 2.5) * (1 - Math.exp(-20 * t));
+        ch[i] = (Math.random() * 2 - 1) * env * 0.4;
+      }
+      var src = audioCtx.createBufferSource();
+      src.buffer = buf;
+      var bp = audioCtx.createBiquadFilter();
+      bp.type = 'bandpass'; bp.frequency.value = 3200; bp.Q.value = 1.2;
+      var g = audioCtx.createGain(); g.gain.value = 0.7;
+      src.connect(bp).connect(g).connect(audioCtx.destination);
+      src.start();
+      src.stop(audioCtx.currentTime + dur);
+    } catch(_){}
+  }
+
+  function createPostit() {
+    var el = document.createElement('div');
+    el.className = 'postit';
+    var rot = (Math.random() * 6 - 3).toFixed(2);
+    el.style.setProperty('--rot', rot + 'deg');
+
+    var rect = postitLayer.getBoundingClientRect();
+    var left = 40 + Math.random() * Math.max(10, rect.width  - 260);
+    var top  = 40 + Math.random() * Math.max(10, rect.height - 260);
+    el.style.left = left + 'px';
+    el.style.top  = top  + 'px';
+
+    el.innerHTML =
+      '<div class="drag-handle"></div>' +
+      '<button class="postit-close" type="button" title="Supprimer">×</button>' +
+      '<textarea placeholder="annoter ici…" maxlength="220"></textarea>';
+
+    postitLayer.appendChild(el);
+    scrishSound();
+
+    var closeBtn = el.querySelector('.postit-close');
+    closeBtn.addEventListener('mousedown', function(ev){ ev.stopPropagation(); });
+    closeBtn.addEventListener('click', function(ev){
+      ev.stopPropagation(); ev.preventDefault();
+      el.style.transition = 'opacity .25s ease, transform .25s ease';
+      el.style.opacity = '0';
+      scrishSound();
+      setTimeout(function(){ el.remove(); }, 250);
+    });
+
+    var handle = el.querySelector('.drag-handle');
+    var dragging = false, offX = 0, offY = 0;
+
+    function onDown(e){
+      if (e.type === 'mousedown' && e.button !== 0) return;
+      var ev = e.touches ? e.touches[0] : e;
+      var r = el.getBoundingClientRect();
+      offX = ev.clientX - r.left;
+      offY = ev.clientY - r.top;
+      dragging = true;
+      el.classList.add('dragging');
+      previewFrame.style.pointerEvents = 'none';
+      e.preventDefault();
+    }
+    function onMove(e){
+      if (!dragging) return;
+      var ev = e.touches ? e.touches[0] : e;
+      var lr = postitLayer.getBoundingClientRect();
+      var nx = ev.clientX - lr.left - offX;
+      var ny = ev.clientY - lr.top  - offY;
+      nx = Math.max(0, Math.min(nx, lr.width  - el.offsetWidth));
+      ny = Math.max(0, Math.min(ny, lr.height - el.offsetHeight));
+      el.style.left = nx + 'px';
+      el.style.top  = ny + 'px';
+      e.preventDefault();
+    }
+    function onUp(){
+      if (dragging) {
+        dragging = false;
+        el.classList.remove('dragging');
+        previewFrame.style.pointerEvents = '';
+        scrishSound();
+      }
+    }
+    handle.addEventListener('mousedown', onDown);
+    handle.addEventListener('touchstart', onDown, { passive: false });
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchend', onUp);
+    document.addEventListener('mouseleave', onUp);
+
+    setTimeout(function(){
+      var ta = el.querySelector('textarea');
+      if (ta) ta.focus();
+    }, 80);
+  }
+
+  btnPostit.addEventListener('click', createPostit);
+
+  document.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+      e.preventDefault();
+      createPostit();
+    }
+  });
+
+  /* ===== VIEWPORT SWITCHER ===== */
+  var previewBody   = document.getElementById('preview-body');
+  var iframeWrapper = document.getElementById('iframe-wrapper');
+  var vpButtons     = document.querySelectorAll('.vp-btn');
+
+  function setViewport(vp) {
+    iframeWrapper.className = 'iframe-wrapper ' + vp;
+    previewBody.classList.toggle('framed', vp !== 'desktop');
+    vpButtons.forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-vp') === vp);
+    });
+  }
+  vpButtons.forEach(function(b){
+    b.addEventListener('click', function(){
+      setViewport(b.getAttribute('data-vp'));
+    });
+  });
+
+  /* ===== DOWNLOAD HTML ===== */
+  document.getElementById('btn-download').addEventListener('click', function(){
+    var code = editor.value.trim();
+    if (!code) { toast('Rien à télécharger — colle du code d\'abord', 'error'); return; }
+
+    // On génère un fichier standalone avec Tailwind + Lucide inclus
+    var doc = buildSrcdoc(code);
+    var blob = new Blob([doc], { type: 'text/html;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var timestamp = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
+    a.href = url;
+    a.download = 'swarm-omnivore-' + timestamp + '.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    toast('HTML téléchargé', 'success');
+  });
+
+  /* ===== SCREENSHOT PNG =====
+     Limite technique : l'iframe a sandbox sans allow-same-origin donc on NE peut PAS
+     lire son DOM depuis html2canvas. Solution : on capture la preview-body (l'iframe
+     apparaîtra en blanc dans certains navigateurs). Meilleure alternative : on demande
+     au user de faire capture plein écran si besoin, OU on capture le dom de la preview
+     via postMessage + data-url. Ici on fait simple : capture du wrapper iframe.
+
+     En pratique, html2canvas ne peut pas voir à travers une iframe sandboxée.
+     Donc on utilise une autre approche : on ré-injecte le HTML dans un div hors-écran,
+     html2canvas le capture, puis on supprime. C'est plus fiable.
+  */
+  document.getElementById('btn-screenshot').addEventListener('click', function(){
+    var code = editor.value.trim();
+    if (!code) { toast('Rien à capturer — colle du code d\'abord', 'error'); return; }
+
+    if (!window.html2canvas) {
+      toast('html2canvas non chargé — vérifie ta connexion', 'error');
+      return;
+    }
+
+    toast('Capture en cours...', 'success');
+
+    // Stratégie : on crée un div hors écran, on y injecte le HTML extrait
+    // (sans <script> pour éviter les effets de bord), avec Tailwind CDN local via <style>.
+    // Problème : Tailwind Play CDN ne peut pas compiler dans un div standard en temps réel
+    // parce qu'il scanne document.body. Comme notre parent a déjà Tailwind chargé ? Non,
+    // il ne l'a pas. Donc on doit charger tailwind temporairement dans le parent, attendre
+    // qu'il scanne, puis capturer.
+
+    var shotHost = document.createElement('div');
+    shotHost.style.cssText =
+      'position:fixed;left:-99999px;top:0;width:' + iframeWrapper.clientWidth + 'px;' +
+      'background:#fff;font-family:Inter,system-ui,sans-serif;color:#0f172a;z-index:-1;';
+    shotHost.id = '__shot_host__';
+
+    // Charge Tailwind dans le parent temporairement (si pas déjà là)
+    var needTW = !document.querySelector('script[data-swarm-tw]');
+    var tw;
+    if (needTW) {
+      tw = document.createElement('script');
+      tw.src = 'https://cdn.tailwindcss.com';
+      tw.setAttribute('data-swarm-tw', '1');
+      document.head.appendChild(tw);
+    }
+
+    // Extraction body
+    var bodyHTML = (function(html){
+      var bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      if (bodyMatch) {
+        var styles = '';
+        var headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+        if (headMatch) {
+          var re = /<style[^>]*>[\s\S]*?<\/style>/gi, m;
+          while ((m = re.exec(headMatch[1])) !== null) styles += m[0] + '\n';
+        }
+        return styles + bodyMatch[1];
+      }
+      if (/<!DOCTYPE/i.test(html) || /<html/i.test(html)) {
+        return html.replace(/<!DOCTYPE[^>]*>/i, '')
+                   .replace(/<\/?html[^>]*>/gi, '')
+                   .replace(/<head[\s\S]*?<\/head>/gi, '')
+                   .replace(/<\/?body[^>]*>/gi, '');
+      }
+      return html;
+    })(code);
+
+    // Retire les scripts user (ils ne doivent pas s'exécuter dans le parent)
+    var safeBodyHTML = bodyHTML.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '');
+
+    shotHost.innerHTML = safeBodyHTML;
+    document.body.appendChild(shotHost);
+
+    // Attendre que Tailwind scanne + les images chargent
+    setTimeout(function(){
+      html2canvas(shotHost, {
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        scale: 2
+      }).then(function(canvas){
+        canvas.toBlob(function(blob){
+          if (!blob) { toast('Capture échouée', 'error'); cleanup(); return; }
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          var ts = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
+          a.href = url;
+          a.download = 'swarm-omnivore-' + ts + '.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          cleanup();
+          toast('PNG téléchargé', 'success');
+        }, 'image/png');
+      }).catch(function(err){
+        toast('Erreur capture : ' + (err.message || 'inconnue'), 'error');
+        cleanup();
+      });
+    }, needTW ? 900 : 300);
+
+    function cleanup() {
+      if (shotHost.parentNode) shotHost.parentNode.removeChild(shotHost);
+    }
+  });
+
+  /* BOOT */
+  updateChars();
+  setStatus('idle', 'PRÊT');
+  previewFrame.srcdoc = buildEmptyDoc();
+  editor.focus();
+
+})();
+</script>
+
+</body>
+</html>
